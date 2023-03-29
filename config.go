@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/spf13/pflag"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -13,7 +14,7 @@ type Config struct {
 }
 
 func (t Config) RegisterFlagsWithPrefix(prefix string, f *pflag.FlagSet) {
-	f.String(prefix+".level", zapcore.DebugLevel.String(), "Zap logger verbose level.")
+	f.String(prefix+".level", zapcore.DebugLevel.String(), "Logger verbose level.")
 }
 
 type ModulesLevel map[string]zapcore.Level
@@ -24,4 +25,14 @@ func (t ModulesLevel) Get(s string) (l zapcore.Level) {
 	}
 
 	return l
+}
+
+func (t ModulesLevel) build(log *zap.Logger) map[string]*logger {
+	m := map[string]*logger{}
+	for k, lv := range t {
+		name := strings.ToLower(k)
+		m[name] = newLogger(lv, log.Named(name))
+	}
+
+	return m
 }
