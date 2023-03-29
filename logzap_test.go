@@ -12,6 +12,29 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+func BenchmarkAppLog(b *testing.B) {
+	require := require.New(b)
+	require.NotNil(require)
+
+	buff := &BufferZapCore{}
+	require.NoError(logzap.Use(buff))
+	require.NoError(logzap.Reload(logzap.Config{
+		Level: zapcore.DebugLevel,
+		Modules: logzap.ModulesLevel{
+			"benchlog": zapcore.InfoLevel,
+		},
+	}))
+
+	log := logzap.Get("benchlog")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		log.Info(".")
+	}
+	b.StopTimer()
+	require.NotZero(buff.Len())
+}
+
 func testLog(log logzap.Logger, prefix string) {
 	log.Trace(nil)
 	//nolint: goerr113
@@ -25,8 +48,8 @@ func testLog(log logzap.Logger, prefix string) {
 
 func TestLogzap(t *testing.T) {
 	t.Parallel()
-	b := BufferZapCore{}
-	require.NoError(t, logzap.Use(&b))
+	b := &BufferZapCore{}
+	require.NoError(t, logzap.Use(b))
 	require.NoError(t, logzap.Reload(logzap.Config{
 		Level: zapcore.DebugLevel,
 		Modules: logzap.ModulesLevel{
