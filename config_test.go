@@ -2,9 +2,12 @@ package logzap_test
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/kiraxie/logzap"
+	"github.com/mitchellh/mapstructure"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/yaml.v3"
@@ -52,3 +55,48 @@ middleware:
 		require.EqualValues(t, "http://example.com:3100/loki/api/v1/push?label.instance=foo&label.job=boo", config.Middleware["loki"])
 	})
 }
+
+func TestViper(t *testing.T) {
+	t.Parallel()
+	v := viper.New()
+	v.SetConfigType("yaml")
+	err := v.ReadConfig(strings.NewReader(strings.ReplaceAll(strings.TrimSpace(`
+level: WARN
+modules:
+	test1:              debug
+	test2:              2
+	caseSensitiveTest1: debug
+	caseSensitiveTest2: 2
+	parent:
+		child:          error
+middleware:
+	console: stdout
+	loki: example.com
+`), "\t", "  ")))
+	require.NoError(t, err)
+
+	config := &logzap.Config{}
+	require.NoError(t, v.Unmarshal(config, decoderConfigOption))
+
+	require.Len(t, config.Modules, 5)
+	require.Contains(t, config.Modules, "test1")
+	require.Contains(t, config.Modules, "test2")
+	require.Contains(t, config.Modules, "casesensitivetest1")
+	require.Contains(t, config.Modules, "casesensitivetest2")
+	require.Contains(t, config.Modules, "parent.child")
+
+	require.Len(t, config.Middleware, 2)
+	require.Contains(t, config.Middleware, "console")
+	require.Contains(t, config.Middleware, "loki")
+}
+
+var decoderConfigOption = func(hookFuncs ...mapstructure.DecodeHookFunc) func(cfg *mapstructure.DecoderConfig) {
+	return func(cfg *mapstructure.DecoderConfig) {
+		if cfg.DecodeHook == nil {
+			cfg.DecodeHook = mapstructure.ComposeDecodeHookFunc(hookFuncs...)
+		} else {
+			cfg.DecodeHook = mapstructure.ComposeDecodeHookFunc(append(
+				[]mapstructure.DecodeHookFunc{cfg.DecodeHook}, hookFuncs...)...)
+		}
+	}
+}(logzap.LevelDecodeHookFuncs...)
