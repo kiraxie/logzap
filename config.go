@@ -35,7 +35,7 @@ func (t ModulesLevel) build(log *zap.Logger) map[string]*logger {
 	m := map[string]*logger{}
 	for k, lv := range t {
 		name := strings.ToLower(k)
-		m[name] = newLogger(lv, log.Named(name))
+		m[name] = newLogger(log.Named(name), lv)
 	}
 
 	return m

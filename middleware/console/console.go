@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func filterLogPattern(msg string) string {
+func FilterLogPattern(msg string) string {
 	return reFilterToken.ReplaceAllString(msg, "${1}[MASKED]")
 }
 
@@ -22,7 +22,7 @@ type filterEncoder struct {
 }
 
 func (t *filterEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (*buffer.Buffer, error) {
-	ent.Message = filterLogPattern(ent.Message)
+	ent.Message = FilterLogPattern(ent.Message)
 	return t.Encoder.EncodeEntry(ent, fields)
 }
 
@@ -30,17 +30,16 @@ func New(
 	_ context.Context,
 	_ prometheus.Registerer,
 	url string,
-) (zapcore.Core, func(context.Context) error, error) {
+) (zapcore.Core, error) {
+	if url == "" {
+		return zapcore.NewNopCore(), nil
+	}
 	encoderConf := zap.NewDevelopmentEncoderConfig()
 	enc := &filterEncoder{zapcore.NewConsoleEncoder(encoderConf)}
-	sink, close, err := zap.Open(strings.Split(url, ",")...)
+	sink, _, err := zap.Open(strings.Split(url, ",")...)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return zapcore.NewCore(enc, sink, zap.DebugLevel),
-		func(context.Context) error {
-			close()
-			return nil
-		}, nil
+	return zapcore.NewCore(enc, sink, zap.DebugLevel), nil
 }

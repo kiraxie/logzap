@@ -45,10 +45,10 @@ func New(
 	ctx context.Context,
 	registry prometheus.Registerer,
 	rawURL string,
-) (zapcore.Core, func(context.Context) error, error) {
+) (zapcore.Core, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	t := &Client{
 		ctx:   ctx,
@@ -76,15 +76,12 @@ func New(
 	promtailConf.Name = name
 
 	if t.Client, err = newPromtailClient(ctx, registry, promtailConf, t.Logger, dryRun); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	shutdown := func(context.Context) error {
-		t.Stop()
-		return nil
-	}
+
 	t.encoder = newZapEncoder(encoding)
 
-	return t, shutdown, nil
+	return t, nil
 }
 
 func (t *Client) With(fields []zapcore.Field) zapcore.Core { return t }
@@ -134,7 +131,10 @@ func (t *Client) Write(ent zapcore.Entry, fields []zapcore.Field) error {
 	}, t.ctx))
 }
 
-func (t *Client) Sync() error { return nil }
+func (t *Client) Sync() error {
+	t.Client.Stop()
+	return nil
+}
 
 func newPromtailClient(
 	ctx context.Context,
@@ -147,7 +147,7 @@ func newPromtailClient(
 	if dryRun {
 		client, err = promtail.NewLogger(metrics, logger, config)
 	} else {
-		client, err = promtail.New(metrics, config, 0, 0, false, logger)
+		client, err = promtail.New(metrics, config, 0, 0, dryRun, logger)
 	}
 	if err != nil {
 		return nil, err

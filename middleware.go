@@ -5,20 +5,19 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/kiraxie/logzap/middleware/buffer"
 	"github.com/kiraxie/logzap/middleware/console"
 	"github.com/kiraxie/logzap/middleware/loki"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/multierr"
 	"go.uber.org/zap/zapcore"
 )
 
-type Shutdown = func(context.Context) error
-
-type MiddlewareConstructor func(ctx context.Context, registry prometheus.Registerer, url string) (zapcore.Core, Shutdown, error)
+type MiddlewareConstructor func(ctx context.Context, registry prometheus.Registerer, url string) (zapcore.Core, error)
 
 var (
 	mu                     sync.RWMutex
 	_middlewareConstructor = map[string]MiddlewareConstructor{
+		"buffer":  buffer.New,
 		"console": console.New,
 		"loki":    loki.New,
 	}
@@ -29,43 +28,31 @@ type Middleware map[string]string
 func (t Middleware) MustBuild(
 	ctx context.Context,
 	registry prometheus.Registerer,
-) (map[string]zapcore.Core, map[string]Shutdown) {
-	middleware, close, err := t.Build(ctx, registry)
+) map[string]zapcore.Core {
+	middleware, err := t.Build(ctx, registry)
 	if err != nil {
 		panic(err)
 	}
-	return middleware, close
+	return middleware
 }
 
 func (t Middleware) Build(
 	ctx context.Context,
 	registry prometheus.Registerer,
-) (middleware map[string]zapcore.Core, shutdown map[string]Shutdown, err error) {
+) (middleware map[string]zapcore.Core, err error) {
 	mu.RLock()
 	defer mu.RUnlock()
-	close := func(ctx context.Context) error {
-		var e []error
-		for _, c := range shutdown {
-			if err := c(ctx); err != nil {
-				e = append(e, err)
-			}
-		}
-		return multierr.Combine(e...)
-	}
+	middleware = map[string]zapcore.Core{}
 	for name, url := range t {
 		constructor, ok := _middlewareConstructor[name]
 		if !ok {
-			return nil, nil, multierr.Append(
-				fmt.Errorf("unsupported middleware: %s", name),
-				close(ctx),
-			)
+			return nil, fmt.Errorf("unsupported middleware: %s", name)
 		}
-		m, c, err := constructor(ctx, registry, url)
+		m, err := constructor(ctx, registry, url)
 		if err != nil {
-			return nil, nil, multierr.Append(err, close(ctx))
+			return nil, err
 		}
 		middleware[name] = m
-		shutdown[name] = c
 	}
 	return
 }
@@ -74,22 +61,21 @@ func (t Middleware) BuildByName(
 	ctx context.Context,
 	registry prometheus.Registerer,
 	name string,
-) (core zapcore.Core, close Shutdown, err error) {
+) (core zapcore.Core, err error) {
 	mu.RLock()
 	defer mu.RUnlock()
 
 	url, ok := t[name]
 	if !ok {
-		return nil, nil, fmt.Errorf("middleware %s not found", name)
+		return nil, fmt.Errorf("middleware %s not found", name)
 	}
 	constructor, ok := _middlewareConstructor[name]
 	if !ok {
-		return nil, nil, fmt.Errorf("unsupported middleware: %s", name)
+		return nil, fmt.Errorf("unsupported middleware: %s", name)
 	}
-	core, close, err = constructor(ctx, registry, url)
+	core, err = constructor(ctx, registry, url)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
 	return
 }
