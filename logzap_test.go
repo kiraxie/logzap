@@ -2,7 +2,7 @@ package logzap_test
 
 import (
 	"bytes"
-	"errors"
+	"context"
 	"fmt"
 	"testing"
 
@@ -12,20 +12,17 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func BenchmarkAppLog(b *testing.B) {
+func BenchmarkLogzap(b *testing.B) {
 	require := require.New(b)
 	require.NotNil(require)
 
+	l := logzap.New(context.Background(), nil, logzap.Config{Level: zapcore.DebugLevel})
 	buff := &BufferZapCore{}
-	require.NoError(logzap.Use(buff))
-	require.NoError(logzap.Reload(logzap.Config{
-		Level: zapcore.DebugLevel,
-		Modules: logzap.ModulesLevel{
-			"benchlog": zapcore.InfoLevel,
-		},
+	require.NoError(l.Use(map[string]zapcore.Core{
+		"buffer": buff,
 	}))
+	log := l.Get("benchmark")
 
-	log := logzap.Get("benchlog")
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -37,8 +34,7 @@ func BenchmarkAppLog(b *testing.B) {
 
 func testLog(log logzap.Logger, prefix string) {
 	log.Trace(nil)
-	//nolint: goerr113
-	log.Trace(errors.New(prefix + "-trace"))
+	log.Trace(fmt.Errorf(prefix + "-trace"))
 	log.Error(prefix + "-error")
 	log.Errorf("%s-errorf-%d", prefix, 9527)
 	log.Warn(prefix + "-warning")
@@ -48,15 +44,14 @@ func testLog(log logzap.Logger, prefix string) {
 
 func TestLogzap(t *testing.T) {
 	t.Parallel()
+	logzap.Reload(zapcore.WarnLevel, logzap.ModulesLevel{
+		"test1":  zapcore.DebugLevel,
+		"test3":  zapcore.InfoLevel,
+		"filter": zapcore.DebugLevel,
+	})
 	b := &BufferZapCore{}
-	require.NoError(t, logzap.Use(b))
-	require.NoError(t, logzap.Reload(logzap.Config{
-		Level: zapcore.DebugLevel,
-		Modules: logzap.ModulesLevel{
-			"test1":  zapcore.DebugLevel,
-			"test3":  zapcore.InfoLevel,
-			"filter": zapcore.DebugLevel,
-		},
+	require.NoError(t, logzap.Use(map[string]zapcore.Core{
+		"buffer": b,
 	}))
 
 	if log := logzap.Get("test1"); assert.NotNil(t, log) {

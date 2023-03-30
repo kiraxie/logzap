@@ -9,12 +9,13 @@ import (
 )
 
 type Config struct {
-	Level   zapcore.Level
-	Modules ModulesLevel `yaml:",omitempty"`
+	Level      zapcore.Level
+	Modules    ModulesLevel `yaml:",omitempty"`
+	Middleware Middleware   `yaml:",omitempty"`
 }
 
 func (t Config) RegisterFlagsWithPrefix(prefix string, f *pflag.FlagSet) {
-	f.String(prefix+".level", zapcore.DebugLevel.String(), "Logger verbose level.")
+	f.String(prefix+".level", zapcore.DebugLevel.String(), "Default module logger verbose level.")
 }
 
 type ModulesLevel map[string]zapcore.Level
