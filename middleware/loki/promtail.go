@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -51,8 +52,9 @@ func New(
 		return nil, err
 	}
 	t := &Client{
-		ctx:   ctx,
-		label: model.LabelSet{},
+		ctx:    ctx,
+		label:  model.LabelSet{},
+		Logger: log.NewLogfmtLogger(os.Stderr),
 	}
 	name := ""
 	encoding := ""
