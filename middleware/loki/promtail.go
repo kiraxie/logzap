@@ -21,6 +21,8 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+var ErrChannelFull = fmt.Errorf("channel full")
+
 func defaultPromtailConfig() promtail.Config {
 	return promtail.Config{
 		BackoffConfig: backoff.Config{
@@ -77,7 +79,7 @@ func New(
 	promtailConf.URL = flagext.URLValue{URL: u}
 	promtailConf.Name = name
 
-	if t.Client, err = newPromtailClient(ctx, registry, promtailConf, t.Logger, dryRun); err != nil {
+	if t.Client, err = newPromtailClient(registry, promtailConf, t.Logger, dryRun); err != nil {
 		return nil, err
 	}
 
@@ -86,7 +88,7 @@ func New(
 	return t, nil
 }
 
-func (t *Client) With(fields []zapcore.Field) zapcore.Core { return t }
+func (t *Client) With([]zapcore.Field) zapcore.Core { return t }
 
 func (t *Client) Enabled(zapcore.Level) bool {
 	// allow all incoming log
@@ -121,7 +123,8 @@ func (t *Client) Write(ent zapcore.Entry, fields []zapcore.Field) error {
 			return nil
 		default:
 		}
-		return fmt.Errorf("channel full")
+
+		return ErrChannelFull
 	}, retry.WithContext(&retry.ExponentialBackOff{
 		InitialInterval:     100 * time.Millisecond,
 		RandomizationFactor: 0,
@@ -135,11 +138,11 @@ func (t *Client) Write(ent zapcore.Entry, fields []zapcore.Field) error {
 
 func (t *Client) Sync() error {
 	t.Client.Stop()
+
 	return nil
 }
 
 func newPromtailClient(
-	ctx context.Context,
 	registry prometheus.Registerer,
 	config promtail.Config,
 	logger log.Logger,
@@ -170,5 +173,6 @@ func newZapEncoder(encoding string) (enc zapcore.Encoder) {
 	default:
 		enc = zapcore.NewJSONEncoder(zEncConf)
 	}
+
 	return
 }

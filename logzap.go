@@ -18,6 +18,7 @@ func New(
 	if err != nil {
 		panic(err)
 	}
+
 	return t
 }
 
@@ -74,6 +75,7 @@ type Logzap struct {
 func (t *Logzap) Sync() error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
+
 	return t.log.Sync()
 }
 
@@ -81,6 +83,7 @@ func (t *Logzap) Sync() error {
 func (t *Logzap) Cores() map[string]zapcore.Core {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
+
 	return t.cores
 }
 
@@ -88,6 +91,7 @@ func (t *Logzap) Core(name string) (zapcore.Core, bool) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	c, ok := t.cores[name]
+
 	return c, ok
 }
 

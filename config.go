@@ -11,10 +11,15 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+var (
+	ErrInvalidModuleLevel = fmt.Errorf("invalid module level")
+	ErrUnsupportedFields  = fmt.Errorf("unsupported fields")
+)
+
 type Config struct {
-	Level      zapcore.Level
-	Modules    ModulesLevel `yaml:",omitempty"`
-	Middleware Middleware   `yaml:",omitempty"`
+	Level      zapcore.Level `yaml:"level"`
+	Modules    ModulesLevel  `yaml:"modules,omitempty"`
+	Middleware Middleware    `yaml:"middleware,omitempty"`
 }
 
 func (t Config) RegisterFlagsWithPrefix(prefix string, f *pflag.FlagSet) {
@@ -57,7 +62,8 @@ func mapStringDecodeHookFunc(f reflect.Type, t reflect.Type, data interface{}) (
 	if v, err := parseMiddleware(data); err == nil {
 		return v, nil
 	}
-	return nil, fmt.Errorf("%#v: unsupported fields", data)
+
+	return nil, fmt.Errorf("%w: %#v", ErrUnsupportedFields, data)
 }
 
 func levelDecodeHookFunc(f reflect.Type, t reflect.Type, data interface{}) (interface{}, error) {
@@ -73,7 +79,7 @@ func levelDecodeHookFunc(f reflect.Type, t reflect.Type, data interface{}) (inte
 func parseModulesLevel(data interface{}) (result ModulesLevel, err error) {
 	source, ok := data.(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("%#v: invalid module level type", data)
+		return nil, fmt.Errorf("%w: %#v", ErrInvalidModuleLevel, data)
 	}
 	result = ModulesLevel{}
 	for key, rawLevel := range source {
@@ -97,7 +103,7 @@ func parseModulesLevel(data interface{}) (result ModulesLevel, err error) {
 				result[module+"."+name] = lv
 			}
 		default:
-			return nil, fmt.Errorf("%#v: invalid module level type", data)
+			return nil, fmt.Errorf("%w: %#v", ErrInvalidModuleLevel, data)
 		}
 	}
 
@@ -107,7 +113,7 @@ func parseModulesLevel(data interface{}) (result ModulesLevel, err error) {
 func parseMiddleware(data interface{}) (result Middleware, err error) {
 	source, ok := data.(map[string]string)
 	if !ok {
-		return nil, fmt.Errorf("%#v: invalid module level type", data)
+		return nil, fmt.Errorf("%w: %#v", ErrInvalidModuleLevel, data)
 	}
 	result = Middleware{}
 	for key, url := range source {
@@ -120,5 +126,4 @@ func parseMiddleware(data interface{}) (result Middleware, err error) {
 var (
 	typeLevel       = reflect.TypeOf(zap.DebugLevel)
 	typeModuleLevel = reflect.TypeOf(ModulesLevel{})
-	typeMiddleware  = reflect.TypeOf(Middleware{})
 )

@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -12,15 +13,17 @@ var (
 	_global = New(context.Background(), nil, Config{Middleware: Middleware{"console": "stdout"}})
 )
 
-func Get(name string) Logger {
+func Get(name string, opts ...zap.Option) Logger {
 	_gmu.Lock()
 	defer _gmu.Unlock()
-	return _global.Get(name)
+
+	return _global.Get(name, opts...)
 }
 
 func Use(m map[string]zapcore.Core) error {
 	_gmu.Lock()
 	defer _gmu.Unlock()
+
 	return _global.Use(m)
 }
 
@@ -33,5 +36,6 @@ func Reload(lv zapcore.Level, modules ModulesLevel) {
 func Sync() error {
 	_gmu.Lock()
 	defer _gmu.Unlock()
+
 	return _global.Sync()
 }

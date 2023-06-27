@@ -9,7 +9,8 @@ import (
 )
 
 type Logger interface {
-	Trace(err error, fields ...zap.Field) error
+	Trace(err error, fields ...zap.Field)
+	TraceError(err error, fields ...zap.Field) error
 	TraceContext(ctx context.Context, err error, fields ...zap.Field) error
 
 	Error(msg string, fields ...zap.Field)
@@ -21,6 +22,9 @@ type Logger interface {
 	Warnf(format string, args ...interface{})
 	Infof(format string, args ...interface{})
 	Debugf(format string, args ...interface{})
+
+	Increase(lv zapcore.Level) Logger
+	zapcore.LevelEnabler
 }
 
 func newLogger(log *zap.Logger, lv zapcore.Level, opts ...zap.Option) *logger {
@@ -29,6 +33,7 @@ func newLogger(log *zap.Logger, lv zapcore.Level, opts ...zap.Option) *logger {
 		opts:        opts,
 	}
 	l.instance.Store(log.WithOptions(append(opts, zap.IncreaseLevel(lv), zap.AddCallerSkip(1))...))
+
 	return l
 }
 
@@ -44,11 +49,32 @@ func (t *logger) reload(log *zap.Logger, lv zapcore.Level) {
 	t.instance.Store(log.WithOptions(append(t.opts, zap.IncreaseLevel(lv), zap.AddCallerSkip(1))...))
 }
 
-func (t *logger) Trace(err error, fields ...zap.Field) error {
+func (t *logger) Increase(lv zapcore.Level) Logger {
+	if !t.Level().Enabled(lv) {
+		return t
+	}
+	l := &logger{
+		AtomicLevel: zap.NewAtomicLevelAt(lv),
+		opts:        t.opts,
+	}
+	l.instance.Store(t.instance.Load().WithOptions(zap.IncreaseLevel(lv)))
+
+	return l
+}
+
+func (t *logger) Trace(err error, fields ...zap.Field) {
+	if err == nil {
+		return
+	}
+	t.instance.Load().Error(err.Error(), fields...)
+}
+
+func (t *logger) TraceError(err error, fields ...zap.Field) error {
 	if err == nil {
 		return nil
 	}
 	t.instance.Load().Error(err.Error(), fields...)
+
 	return err
 }
 
@@ -62,6 +88,7 @@ func (t *logger) TraceContext(ctx context.Context, err error, fields ...zap.Fiel
 	default:
 	}
 	t.instance.Load().Error(err.Error(), fields...)
+
 	return err
 }
 

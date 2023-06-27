@@ -2,6 +2,7 @@ package logzap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -10,6 +11,11 @@ import (
 	"github.com/kiraxie/logzap/middleware/loki"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap/zapcore"
+)
+
+var (
+	ErrUnsupportedMiddleware = errors.New("unsupported middleware")
+	ErrMiddlewareNotFound    = errors.New("middleware not found")
 )
 
 type MiddlewareConstructor func(ctx context.Context, registry prometheus.Registerer, url string) (zapcore.Core, error)
@@ -33,6 +39,7 @@ func (t Middleware) MustBuild(
 	if err != nil {
 		panic(err)
 	}
+
 	return middleware
 }
 
@@ -46,7 +53,7 @@ func (t Middleware) Build(
 	for name, url := range t {
 		constructor, ok := _middlewareConstructor[name]
 		if !ok {
-			return nil, fmt.Errorf("unsupported middleware: %s", name)
+			return nil, fmt.Errorf("%w: %s", ErrUnsupportedMiddleware, name)
 		}
 		m, err := constructor(ctx, registry, url)
 		if err != nil {
@@ -54,6 +61,7 @@ func (t Middleware) Build(
 		}
 		middleware[name] = m
 	}
+
 	return
 }
 
@@ -67,15 +75,16 @@ func (t Middleware) BuildByName(
 
 	url, ok := t[name]
 	if !ok {
-		return nil, fmt.Errorf("middleware %s not found", name)
+		return nil, fmt.Errorf("%w: %s", ErrMiddlewareNotFound, name)
 	}
 	constructor, ok := _middlewareConstructor[name]
 	if !ok {
-		return nil, fmt.Errorf("unsupported middleware: %s", name)
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedMiddleware, name)
 	}
 	core, err = constructor(ctx, registry, url)
 	if err != nil {
 		return nil, err
 	}
+
 	return
 }

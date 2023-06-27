@@ -9,33 +9,35 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-type SyncBuffer struct {
+type syncBuffer struct {
 	bytes.Buffer
 }
 
-func (t *SyncBuffer) Sync() error { return nil }
+func (t *syncBuffer) Sync() error { return nil }
 
-type BufferZapCore struct {
+type Buffer struct {
 	Name string
-	SyncBuffer
+	syncBuffer
 	Level zapcore.Level
 }
 
-func (t *BufferZapCore) With(fields []zapcore.Field) zapcore.Core { return t }
+func (t *Buffer) With([]zapcore.Field) zapcore.Core { return t }
 
-func (t *BufferZapCore) Enabled(level zapcore.Level) bool {
+func (t *Buffer) Enabled(zapcore.Level) bool {
 	return true
 }
 
-func (t *BufferZapCore) Check(ent zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.CheckedEntry {
+func (t *Buffer) Check(ent zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.CheckedEntry {
 	if (ent.LoggerName == t.Name || t.Name == "") && t.Enabled(ent.Level) {
 		return ce.AddCore(ent, t)
 	}
+
 	return ce
 }
 
-func (t *BufferZapCore) Write(ent zapcore.Entry, fields []zapcore.Field) (err error) {
-	_, err = t.SyncBuffer.WriteString(console.FilterLogPattern(ent.Message) + "\n")
+func (t *Buffer) Write(ent zapcore.Entry, _ []zapcore.Field) (err error) {
+	_, err = t.syncBuffer.WriteString(console.FilterLogPattern(ent.Message) + "\n")
+
 	return
 }
 
@@ -44,5 +46,5 @@ func New(
 	_ prometheus.Registerer,
 	url string,
 ) (zapcore.Core, error) {
-	return &BufferZapCore{Name: url}, nil
+	return &Buffer{Name: url}, nil
 }

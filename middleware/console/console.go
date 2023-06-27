@@ -23,6 +23,7 @@ type filterEncoder struct {
 
 func (t *filterEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (*buffer.Buffer, error) {
 	ent.Message = FilterLogPattern(ent.Message)
+
 	return t.Encoder.EncodeEntry(ent, fields)
 }
 

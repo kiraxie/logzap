@@ -2,6 +2,7 @@ package logzap_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -11,6 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
+)
+
+var (
+	ErrUnknown = errors.New("unknown")
+	ErrTest    = errors.New("test")
 )
 
 func BenchmarkLogzap(b *testing.B) {
@@ -28,8 +34,8 @@ func BenchmarkLogzap(b *testing.B) {
 		})
 	c, ok := l.Core("buffer")
 	require.True(ok)
-	require.IsType(&buffer.BufferZapCore{}, c)
-	buff := c.(*buffer.BufferZapCore)
+	require.IsType(&buffer.Buffer{}, c)
+	buff := c.(*buffer.Buffer)
 	log := l.Get("benchmark")
 
 	b.ReportAllocs()
@@ -43,7 +49,7 @@ func BenchmarkLogzap(b *testing.B) {
 
 func testLog(log logzap.Logger, prefix string) {
 	log.Trace(nil)
-	log.Trace(fmt.Errorf(prefix + "-trace"))
+	log.Trace(fmt.Errorf("%w %s", ErrTest, prefix+"-trace"))
 	log.Error(prefix + "-error")
 	log.Errorf("%s-errorf-%d", prefix, 9527)
 	log.Warn(prefix + "-warning")
@@ -70,8 +76,8 @@ func TestLogzap(t *testing.T) {
 	)
 	c, ok := logger.Core("buffer")
 	require.True(t, ok)
-	require.IsType(t, &buffer.BufferZapCore{}, c)
-	b := c.(*buffer.BufferZapCore)
+	require.IsType(t, &buffer.Buffer{}, c)
+	b := c.(*buffer.Buffer)
 
 	if log := logger.Get("test1"); assert.NotNil(t, log) {
 		testLog(log, "test1")
@@ -86,7 +92,7 @@ func TestLogzap(t *testing.T) {
 	if log := logger.Get("test3"); assert.NotNil(t, log) {
 		log.Info("test5-info")
 		log.Warn("test5-warn")
-		log.Errorf("%v", fmt.Errorf("unknown"))
+		log.Errorf("%w", ErrUnknown)
 
 		assert.Contains(t, b.String(), "test5-info")
 		assert.Contains(t, b.String(), "test5-warn")
