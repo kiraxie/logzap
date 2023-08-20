@@ -33,8 +33,7 @@ level: "info"
 modules:
   foo: "warn"
   boo: "debug"
-middleware:
-  console: "stdout"
+cores:
   loki: "http://example.com:3100/loki/api/v1/push?label.instance=foo&label.job=boo"
 `
 		config := &logzap.Config{}
@@ -48,11 +47,9 @@ middleware:
 		require.Contains(t, config.Modules, "boo")
 		require.EqualValues(t, zapcore.DebugLevel, config.Modules["boo"])
 
-		require.Len(t, config.Middleware, 2)
-		require.Contains(t, config.Middleware, "console")
-		require.EqualValues(t, "stdout", config.Middleware["console"])
-		require.Contains(t, config.Middleware, "loki")
-		require.EqualValues(t, "http://example.com:3100/loki/api/v1/push?label.instance=foo&label.job=boo", config.Middleware["loki"])
+		require.Len(t, config.Cores, 1)
+		require.Contains(t, config.Cores, "loki")
+		require.EqualValues(t, "http://example.com:3100/loki/api/v1/push?label.instance=foo&label.job=boo", config.Cores["loki"])
 	})
 }
 
@@ -69,7 +66,7 @@ modules:
 	caseSensitiveTest2: 2
 	parent:
 		child:          error
-middleware:
+cores:
 	console: stdout
 	loki: example.com
 `), "\t", "  ")))
@@ -85,9 +82,9 @@ middleware:
 	require.Contains(t, config.Modules, "casesensitivetest2")
 	require.Contains(t, config.Modules, "parent.child")
 
-	require.Len(t, config.Middleware, 2)
-	require.Contains(t, config.Middleware, "console")
-	require.Contains(t, config.Middleware, "loki")
+	require.Len(t, config.Cores, 2)
+	require.Contains(t, config.Cores, "console")
+	require.Contains(t, config.Cores, "loki")
 }
 
 var decoderConfigOption = func(hookFuncs ...mapstructure.DecodeHookFunc) func(cfg *mapstructure.DecoderConfig) {
@@ -99,4 +96,4 @@ var decoderConfigOption = func(hookFuncs ...mapstructure.DecodeHookFunc) func(cf
 				[]mapstructure.DecodeHookFunc{cfg.DecodeHook}, hookFuncs...)...)
 		}
 	}
-}(logzap.LevelDecodeHookFuncs...)
+}(logzap.MapStructureLevelDecodeHook...)

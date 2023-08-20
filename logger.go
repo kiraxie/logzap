@@ -9,22 +9,37 @@ import (
 )
 
 type Logger interface {
+	// Error logs a message at ErrorLevel if err is not nil.
 	Trace(err error, fields ...zap.Field)
+	// TraceError logs a message at ErrorLevel if err is not nil.
 	TraceError(err error, fields ...zap.Field) error
+	// TraceContext logs a message at ErrorLevel if err is not nil and ctx is not done.
 	TraceContext(ctx context.Context, err error, fields ...zap.Field) error
 
+	// Error logs a message at ErrorLevel. The message includes any fields passed
 	Error(msg string, fields ...zap.Field)
+	// Warn logs a message at WarnLevel. The message includes any fields passed
 	Warn(msg string, fields ...zap.Field)
+	// Info logs a message at InfoLevel. The message includes any fields passed
 	Info(msg string, fields ...zap.Field)
+	// Debug logs a message at DebugLevel. The message includes any fields passed
 	Debug(msg string, fields ...zap.Field)
 
+	// Errorf uses fmt.Sprintf to log a templated message at ErrorLevel.
 	Errorf(format string, args ...interface{})
+	// Warnf uses fmt.Sprintf to log a templated message at WarnLevel.
 	Warnf(format string, args ...interface{})
+	// Infof uses fmt.Sprintf to log a templated message at InfoLevel.
 	Infof(format string, args ...interface{})
+	// Debugf uses fmt.Sprintf to log a templated message at DebugLevel.
 	Debugf(format string, args ...interface{})
 
+	// Increase increase log level
 	Increase(lv zapcore.Level) Logger
+	// Level return
 	zapcore.LevelEnabler
+	// L return zap.Logger
+	L() *zap.Logger
 }
 
 func newLogger(log *zap.Logger, lv zapcore.Level, opts ...zap.Option) *logger {
@@ -41,6 +56,10 @@ type logger struct {
 	zap.AtomicLevel
 	instance atomic.Pointer[zap.Logger]
 	opts     []zap.Option
+}
+
+func (t *logger) L() *zap.Logger {
+	return t.instance.Load()
 }
 
 // reload doesn't change original options

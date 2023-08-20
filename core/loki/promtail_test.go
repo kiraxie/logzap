@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kiraxie/logzap/middleware/loki"
+	"github.com/kiraxie/logzap/core/loki"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

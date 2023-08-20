@@ -174,5 +174,5 @@ func newZapEncoder(encoding string) (enc zapcore.Encoder) {
 		enc = zapcore.NewJSONEncoder(zEncConf)
 	}
 
-	return
+	return 
 }

@@ -1,41 +1,31 @@
 package logzap
 
 import (
-	"context"
-	"sync"
+	"sync/atomic"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 var (
-	_gmu    sync.Mutex
-	_global = New(context.Background(), nil, Config{Middleware: Middleware{"console": "stdout"}})
+	_global atomic.Pointer[Logzap]
 )
 
+func init() {
+	_global.Store(Default())
+}
+
+// Get return a logger with given name and options from global instance.
 func Get(name string, opts ...zap.Option) Logger {
-	_gmu.Lock()
-	defer _gmu.Unlock()
-
-	return _global.Get(name, opts...)
+	return _global.Load().Get(name, opts...)
 }
 
-func Use(m map[string]zapcore.Core) error {
-	_gmu.Lock()
-	defer _gmu.Unlock()
-
-	return _global.Use(m)
-}
-
+// Reload reload global instance with given log level.
 func Reload(lv zapcore.Level, modules ModulesLevel) {
-	_gmu.Lock()
-	defer _gmu.Unlock()
-	_global.Reload(lv, modules)
+	_global.Load().Reload(lv, modules)
 }
 
+// Sync flushes any buffered log entries.
 func Sync() error {
-	_gmu.Lock()
-	defer _gmu.Unlock()
-
-	return _global.Sync()
+	return _global.Load().Sync()
 }

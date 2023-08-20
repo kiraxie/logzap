@@ -17,13 +17,13 @@ var (
 )
 
 type Config struct {
-	Level      zapcore.Level `yaml:"level"`
-	Modules    ModulesLevel  `yaml:"modules,omitempty"`
-	Middleware Middleware    `yaml:"middleware,omitempty"`
+	Level   zapcore.Level `yaml:"level"`
+	Modules ModulesLevel  `yaml:"modules,omitempty"`
+	Cores   Cores         `yaml:"cores,omitempty"`
 }
 
 func (t Config) RegisterFlagsWithPrefix(prefix string, f *pflag.FlagSet) {
-	f.String(prefix+".level", zapcore.DebugLevel.String(), "Default module logger verbose level.")
+	f.String(prefix+".level", zapcore.DebugLevel.String(), "Global logger verbose level.")
 }
 
 type ModulesLevel map[string]zapcore.Level
@@ -46,7 +46,7 @@ func (t ModulesLevel) build(log *zap.Logger) map[string]*logger {
 	return m
 }
 
-var LevelDecodeHookFuncs = []mapstructure.DecodeHookFunc{
+var MapStructureLevelDecodeHook = []mapstructure.DecodeHookFunc{
 	levelDecodeHookFunc,
 	mapStringDecodeHookFunc,
 }
@@ -110,12 +110,12 @@ func parseModulesLevel(data interface{}) (result ModulesLevel, err error) {
 	return result, nil
 }
 
-func parseMiddleware(data interface{}) (result Middleware, err error) {
+func parseMiddleware(data interface{}) (result Cores, err error) {
 	source, ok := data.(map[string]string)
 	if !ok {
 		return nil, fmt.Errorf("%w: %#v", ErrInvalidModuleLevel, data)
 	}
-	result = Middleware{}
+	result = Cores{}
 	for key, url := range source {
 		result[strings.ToLower(key)] = url
 	}

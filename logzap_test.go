@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/kiraxie/logzap"
-	"github.com/kiraxie/logzap/middleware/buffer"
+	"github.com/kiraxie/logzap/core/buffer"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,20 +23,11 @@ func BenchmarkLogzap(b *testing.B) {
 	require := require.New(b)
 	require.NotNil(require)
 
-	l := logzap.New(
-		context.Background(),
-		prometheus.DefaultRegisterer,
-		logzap.Config{
-			Level: zapcore.DebugLevel,
-			Middleware: logzap.Middleware{
-				"buffer": "",
-			},
-		})
-	c, ok := l.Core("buffer")
-	require.True(ok)
-	require.IsType(&buffer.Buffer{}, c)
-	buff := c.(*buffer.Buffer)
+	l := logzap.New(context.Background(), prometheus.DefaultRegisterer, logzap.Config{Level: zapcore.DebugLevel})
+	core, err := buffer.New(context.Background(), prometheus.DefaultRegisterer, "")
+	require.NoError(err)
 	log := l.Get("benchmark")
+	l.Use(core)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -44,6 +35,9 @@ func BenchmarkLogzap(b *testing.B) {
 		log.Info(".")
 	}
 	b.StopTimer()
+
+	require.IsType(&buffer.Buffer{}, core)
+	buff := core.(*buffer.Buffer)
 	require.NotZero(buff.Len())
 }
 
@@ -60,8 +54,7 @@ func testLog(log logzap.Logger, prefix string) {
 func TestLogzap(t *testing.T) {
 	t.Parallel()
 	logger := logzap.New(
-		context.Background(),
-		prometheus.DefaultRegisterer,
+		context.Background(), prometheus.DefaultRegisterer,
 		logzap.Config{
 			Level: zapcore.WarnLevel,
 			Modules: logzap.ModulesLevel{
@@ -69,15 +62,13 @@ func TestLogzap(t *testing.T) {
 				"test3":  zapcore.InfoLevel,
 				"filter": zapcore.DebugLevel,
 			},
-			Middleware: logzap.Middleware{
-				"buffer": "",
-			},
 		},
 	)
-	c, ok := logger.Core("buffer")
-	require.True(t, ok)
-	require.IsType(t, &buffer.Buffer{}, c)
-	b := c.(*buffer.Buffer)
+	core, err := buffer.New(context.Background(), prometheus.DefaultRegisterer, "")
+	require.NoError(t, err)
+	require.IsType(t, &buffer.Buffer{}, core)
+	b := core.(*buffer.Buffer)
+	logger.Use(core)
 
 	if log := logger.Get("test1"); assert.NotNil(t, log) {
 		testLog(log, "test1")

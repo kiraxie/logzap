@@ -5,10 +5,26 @@ import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
+// Nop return a instance which does nothing
+func Nop() *Logzap {
+	return &Logzap{
+		log:     zap.NewNop(),
+		modules: map[string]*logger{},
+	}
+}
+
+// Default return a instance which with DebugLevel
+func Default() *Logzap {
+	return New(context.Background(), prometheus.DefaultRegisterer, Config{Level: zapcore.DebugLevel})
+}
+
+// New return a instance with given configuration.
+// Note that it will panic if any error occurred.
 func New(
 	ctx context.Context,
 	registry prometheus.Registerer,
@@ -22,21 +38,32 @@ func New(
 	return t
 }
 
+// NewE return a instance and error with given configuration.
 func NewE(
 	ctx context.Context,
 	registry prometheus.Registerer,
 	c Config,
 ) (t *Logzap, err error) {
-	if len(c.Middleware) == 0 {
-		c.Middleware = Middleware{"console": ""}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if registry == nil {
+		registry = prometheus.DefaultRegisterer
+	}
+	if len(c.Cores) == 0 {
+		c.Cores = Cores{"console": "console://"}
 	}
 	t = &Logzap{
 		level: c.Level,
 	}
-	if t.cores, err = c.Middleware.Build(ctx, registry); err != nil {
+	cores, err := c.Cores.Build(ctx, registry)
+	if err != nil {
 		return nil, err
 	}
-	if t.log, err = newZapLogger(t.cores); err != nil {
+	for _, c := range cores {
+		t.syncs = append(t.syncs, c.Sync)
+	}
+	if t.log, err = newZapLogger(cores); err != nil {
 		return nil, err
 	}
 	t.modules = c.Modules.build(t.log)
@@ -44,19 +71,10 @@ func NewE(
 	return t, nil
 }
 
-func newZapLogger(m map[string]zapcore.Core) (*zap.Logger, error) {
-	sink, _, err := zap.Open("stderr")
-	if err != nil {
-		return nil, err
-	}
-	cores := make([]zapcore.Core, 0, len(m))
-	for _, v := range m {
-		cores = append(cores, v)
-	}
+func newZapLogger(cores []zapcore.Core) (*zap.Logger, error) {
 
 	return zap.New(
 		zapcore.NewTee(cores...),
-		zap.ErrorOutput(sink),
 		zap.Development(),
 		zap.AddStacktrace(zap.WarnLevel),
 		zap.AddCaller(),
@@ -64,35 +82,24 @@ func newZapLogger(m map[string]zapcore.Core) (*zap.Logger, error) {
 }
 
 type Logzap struct {
-	mu    sync.RWMutex
-	level zapcore.Level
-	log   *zap.Logger
-	// modules map[string]*logger
+	mu      sync.RWMutex
+	level   zapcore.Level
+	log     *zap.Logger
 	modules map[string]*logger
-	cores   map[string]zapcore.Core
+	syncs   []func() error
 }
 
-func (t *Logzap) Sync() error {
+func (t *Logzap) Sync() (err error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	return t.log.Sync()
-}
+	for _, sync := range t.syncs {
+		if e := sync(); e != nil {
+			err = multierr.Append(err, e)
+		}
+	}
 
-// return the underlying cores, might be non thread-safe
-func (t *Logzap) Cores() map[string]zapcore.Core {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	return t.cores
-}
-
-func (t *Logzap) Core(name string) (zapcore.Core, bool) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	c, ok := t.cores[name]
-
-	return c, ok
+	return
 }
 
 func (t *Logzap) Get(name string, opts ...zap.Option) Logger {
@@ -110,45 +117,29 @@ func (t *Logzap) Get(name string, opts ...zap.Option) Logger {
 	return l
 }
 
-// only reconfiguration the submodule level
+// only reconfiguration the global level and submodule level
 func (t *Logzap) Reload(lv zapcore.Level, modules ModulesLevel) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.level = lv
-	for name, lv := range modules {
-		m, ok := t.modules[name]
-		if !ok {
-			t.modules[name] = newLogger(t.log.Named(name), lv)
-		} else {
-			m.reload(t.log.Named(name), lv)
-		}
-	}
+
 	for name, m := range t.modules {
 		// reset the submodules to new general level which not in new Modules configuration
 		if _, ok := modules[name]; !ok {
 			m.reload(t.log.Named(name), t.level)
+		} else {
+			t.modules[name] = newLogger(t.log.Named(name), lv)
 		}
 	}
 }
 
-func (t *Logzap) Use(m map[string]zapcore.Core) (err error) {
+func (t *Logzap) Use(core zapcore.Core) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	for k, c := range m {
-		if v, ok := t.cores[k]; ok {
-			t.log.Sugar().Warnf("middleware %s exist. overwrite.", k)
-			if err := v.Sync(); err != nil {
-				return err
-			}
-		}
-		t.cores[k] = c
-	}
-	if t.log, err = newZapLogger(t.cores); err != nil {
-		return
-	}
+	t.log = t.log.WithOptions(zap.WrapCore(func(zapcore.Core) zapcore.Core {
+		return core
+	}))
 	for name, m := range t.modules {
 		m.reload(t.log.Named(name), m.Level())
 	}
-
-	return
 }

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/kiraxie/logzap/middleware/console"
+	"github.com/kiraxie/logzap/filter"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap/zapcore"
 )
@@ -36,7 +36,7 @@ func (t *Buffer) Check(ent zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.Che
 }
 
 func (t *Buffer) Write(ent zapcore.Entry, _ []zapcore.Field) (err error) {
-	_, err = t.syncBuffer.WriteString(console.FilterLogPattern(ent.Message) + "\n")
+	_, err = t.syncBuffer.WriteString(filter.LogPattern(ent.Message) + "\n")
 
 	return
 }
